@@ -1,4 +1,10 @@
-# HOME 回零方法
+# CiA 402 回零方法原理图解手册
+
+[⬅ 返回首页 (README)](../README.zh-CN.md) | [🚀 在线运行模拟器](https://zhengyong1023.github.io/cia402-homing-simulator/)
+
+本文档汇总了 CiA 402 / ETG.6010 规范中各回零模式的运动轨迹与信号触发时序图解，配合 [在线交互式回零模拟器](https://zhengyong1023.github.io/cia402-homing-simulator/) 验证使用。
+
+---
 
 ## 方法-6 低速反转堵转
 电机初始以低速反转，发生堵转后，立即停止，以该位置作为原点。

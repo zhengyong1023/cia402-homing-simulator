@@ -103,6 +103,8 @@ npx serve .
 
 ## 📋 支持的 CiA 402 回零模式对照表
 
+> 📘 **动作时序与原理图解**：若需查阅各个模式的详细加减速时序图与动作分解，请参阅 [CiA 402 回零方法原理图解手册](docs/homing-methods.zh-CN.md)。
+
 | 分类 | 模式编号 | 逻辑说明 |
 | :--- | :---: | :--- |
 | **机械堵转 / 碰硬限位** | `-6` | 负向低速运行直至碰硬堵转 $\rightarrow$ 停止并置零 |
@@ -135,6 +137,9 @@ npx serve .
 
 ```text
 ├── index.html                        # GitHub Pages 访问入口（自动跳转至模拟器）
+├── docs/                             # 详细技术文档与图解资源
+│   ├── homing-methods.zh-CN.md       # CiA 402 各回零模式原理与时序图解
+│   └── images/                       # 文档引用的图解资源
 ├── src/
 │   ├── cia402-homing-simulator.html   # 主 Web 界面（UI 交互、Canvas 渲染与样式布局）
 │   └── homing-logic.js               # 核心回零状态机与物理动力学引擎（纯 JS）

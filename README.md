@@ -103,6 +103,8 @@ Then navigate to `http://localhost:8080/src/cia402-homing-simulator.html`.
 
 ## 📋 Supported CiA 402 Homing Methods Summary
 
+> 📘 **Diagrams & Detailed Timing**: For visual timing charts and step-by-step physical breakdown of each homing routine, refer to the [CiA 402 Homing Methods Illustrated Guide (Chinese)](docs/homing-methods.zh-CN.md).
+
 | Category | Method ID | Description |
 | :--- | :---: | :--- |
 | **Mechanical Stall / Hard Stop** | `-6` | Low-speed reverse motion until stall $\rightarrow$ Stop and set zero. |
@@ -135,6 +137,9 @@ Then navigate to `http://localhost:8080/src/cia402-homing-simulator.html`.
 
 ```text
 ├── index.html                        # GitHub Pages entry point (redirects to simulator)
+├── docs/                             # Technical documentation and visual assets
+│   ├── homing-methods.zh-CN.md       # Step-by-step illustrated guide for homing routines
+│   └── images/                       # Waveform & timing diagram assets
 ├── src/
 │   ├── cia402-homing-simulator.html   # Main web interface (UI, canvas/DOM stage, styling)
 │   └── homing-logic.js               # Core homing state machine and physics engine (Pure JS)
