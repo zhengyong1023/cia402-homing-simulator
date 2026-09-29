@@ -815,8 +815,9 @@ function setLanguage(lang) {
   const descDict = modeDescriptions[currentLang] || modeDescriptions.zh;
   modeDesc.innerHTML = descDict[curM] || '';
 
-  // 更新诊断面板
+  // 更新诊断面板与日志历史
   render();
+  renderLogHistory();
 }
 
 // === UI 坐标映射工具函数 ===
@@ -827,13 +828,112 @@ function posToPixels(pos) {
   return 16 + (pos / AXIS_MAX) * usableWidth;
 }
 
-function log(msg) {
-  const time = new Date().toLocaleTimeString('en-GB', {hour12:false});
+// === 国际化日志引擎 (i18n Event Logger) ===
+const logHistory = [];
+
+function translateLogPhrase(text) {
+  if (!text) return '';
+  let res = String(text);
+  const phraseMap = [
+    [/堵转检测到于 ([\d\.]+)/g, 'Mechanical stall detected at $1 u'],
+    [/转矩消失于 ([\d\.]+)/g, 'Torque released at $1 u'],
+    [/Index脉冲发现于 ([\d\.]+)/g, 'Index pulse detected at $1 u'],
+    [/堵转位置 ([\d\.]+)/g, 'Stall position $1 u'],
+    [/转矩消失位置 ([\d\.]+)/g, 'Torque release position $1 u'],
+    [/Z相位置 ([\d\.]+)/g, 'Index (Z) position $1 u'],
+    [/原点边缘位置 ([\d\.]+)/g, 'Home switch edge position $1 u'],
+    [/当前位置 ([\d\.]+) 即为原点/g, 'Current position $1 u calibrated as Home'],
+    [/负限位触发/g, 'Negative limit triggered'],
+    [/正限位触发/g, 'Positive limit triggered'],
+    [/离开负限位/g, 'Leaving negative limit'],
+    [/离开正限位/g, 'Leaving positive limit'],
+    [/负限位有效停止/g, 'Negative limit active, motor stopped'],
+    [/正限位有效停止/g, 'Positive limit active, motor stopped'],
+    [/反向限位触发/g, 'Opposite limit triggered'],
+    [/转执行A/g, 'Switching to condition A'],
+    [/转执行B/g, 'Switching to condition B'],
+    [/进入原点/g, 'Entering Home switch'],
+    [/离开原点/g, 'Leaving Home switch'],
+    [/已离开原点/g, 'Left Home switch'],
+    [/穿过原点，减速/g, 'Passing Home switch, decelerating'],
+    [/穿过原点，转执行找原点过程/g, 'Passed Home switch, seeking Home'],
+    [/原点有效停止/g, 'Stopped on Home switch active'],
+    [/原点再次有效/g, 'Home switch active again'],
+    [/运动中限位触发/g, 'Limit switch triggered during motion'],
+    [/运动中错误限位触发/g, 'Opposite limit triggered during motion'],
+    [/运动中信号触发（限位\/原点）/g, 'Limit/Home signal triggered during motion'],
+    [/负限位有效，回零失败/g, 'Negative limit active, homing failed'],
+    [/正限位有效，回零失败/g, 'Positive limit active, homing failed'],
+    [/未找到Z相，回零失败/g, 'Index pulse not found, homing failed'],
+    [/已完成回零，请先按重置。/g, 'Homing already completed. Please click Reset first.']
+  ];
+  for (const [re, rep] of phraseMap) {
+    res = res.replace(re, rep);
+  }
+  return res;
+}
+
+function autoTranslateLogToEn(msg) {
+  if (!msg) return '';
+  const mDone = msg.match(/^方法\s*(-?\d+)(?:\((.*?)\))?：(.*) → 回零完成$/);
+  if (mDone) {
+    const [, id, sub, reason] = mDone;
+    return `Method ${id}${sub ? '(' + sub + ')' : ''}: ${translateLogPhrase(reason)} → Homing completed`;
+  }
+  const mErr = msg.match(/^方法\s*(-?\d+)(?:\((.*?)\))?：错误 — (.*)$/);
+  if (mErr) {
+    const [, id, sub, reason] = mErr;
+    return `Method ${id}${sub ? '(' + sub + ')' : ''}: Error — ${translateLogPhrase(reason)}`;
+  }
+  const mEvt = msg.match(/^方法\s*(-?\d+)(?:\((.*?)\))?：(.*)$/);
+  if (mEvt) {
+    const [, id, sub, detail] = mEvt;
+    return `Method ${id}${sub ? '(' + sub + ')' : ''}: ${translateLogPhrase(detail)}`;
+  }
+  if (msg.startsWith('初始位置已更改：')) {
+    return 'Initial position changed to: ' + msg.replace('初始位置已更改：', '') + ' u';
+  }
+  const mStart = msg.match(/^开始方法\s*(-?\d+)\s*回零，起始位置\s*([\d\.]+)$/);
+  if (mStart) {
+    return `Starting Method ${mStart[1]} homing, initial position: ${mStart[2]} u`;
+  }
+  if (msg.startsWith('系统已重置。初始位置：')) {
+    return 'System reset. Initial position: ' + msg.replace('系统已重置。初始位置：', '') + ' u';
+  }
+  if (msg === 'CiA 402 回零模拟器已初始化') return 'CiA 402 Homing Simulator initialized';
+  if (msg === '轴行程：0–1000 u | 原点：500 u | Index间隔：40 u') return 'Travel: 0–1000 u | Home: 500 u | Index interval: 40 u';
+  if (msg === '已完成回零，请先按重置。') return 'Homing already completed. Please click Reset first.';
+  if (msg === '日志已清除。') return 'Log cleared.';
+
+  return translateLogPhrase(msg);
+}
+
+function appendLogItem(time, text) {
   const div = document.createElement('div');
   div.className = 'text-gray-400';
-  div.innerHTML = `<span class="text-gray-600">[${time}]</span> ${msg}`;
+  div.innerHTML = `<span class="text-gray-600">[${time}]</span> ${text}`;
   eventLog.appendChild(div);
   eventLog.scrollTop = eventLog.scrollHeight;
+}
+
+function renderLogHistory() {
+  eventLog.innerHTML = '';
+  if (logHistory.length === 0) {
+    const readyTxt = currentLang === 'en' ? 'Ready.' : '就绪。';
+    eventLog.innerHTML = `<div class="text-gray-600">${readyTxt}</div>`;
+    return;
+  }
+  logHistory.forEach(item => {
+    appendLogItem(item.time, currentLang === 'en' ? item.en : item.zh);
+  });
+}
+
+function log(msg, enMsg) {
+  const time = new Date().toLocaleTimeString('en-GB', {hour12:false});
+  const zh = msg;
+  const en = enMsg || autoTranslateLogToEn(msg);
+  logHistory.push({ time, zh, en });
+  appendLogItem(time, currentLang === 'en' ? en : zh);
 }
 
 // === 传感器 UI ===
@@ -921,8 +1021,11 @@ function completeHoming(reason) {
   homingComplete = true;
   isRunning = false;
   setState('HOMED', reason);
-  const t = i18n[currentLang];
-  log((currentLang === 'zh' ? '方法 ' : 'Method ') + currentMode + '：' + reason + t.logCompleted);
+  const zhReason = reason;
+  const enReason = translateLogPhrase(reason);
+  const zhMsg = `方法 ${currentMode}：${zhReason} → 回零完成`;
+  const enMsg = `Method ${currentMode}: ${enReason} → Homing completed`;
+  log(zhMsg, enMsg);
   btnStart.disabled = false;
 }
 
@@ -930,8 +1033,11 @@ function triggerError(reason) {
   stopMotor();
   isRunning = false;
   setState('ERROR', reason);
-  const t = i18n[currentLang];
-  log((currentLang === 'zh' ? '方法 ' : 'Method ') + currentMode + t.logError + reason);
+  const zhReason = reason;
+  const enReason = translateLogPhrase(reason);
+  const zhMsg = `方法 ${currentMode}：错误 — ${zhReason}`;
+  const enMsg = `Method ${currentMode}: Error — ${enReason}`;
+  log(zhMsg, enMsg);
   btnStart.disabled = false;
 }
 
@@ -977,19 +1083,20 @@ posSelect.addEventListener('change', () => {
   prevSensorHOME = sensorHOME; prevSensorNOT = sensorNOT;
   prevSensorPOT = sensorPOT; prevSensorINDEX = sensorINDEX;
   prevSensorSTALL = sensorSTALL;
-  const t = i18n[currentLang];
-  log(t.logPosChanged + position.toFixed(1));
+  log(`初始位置已更改：${position.toFixed(1)}`, `Initial position changed to: ${position.toFixed(1)} u`);
   render();
 });
 
 btnStart.addEventListener('click', () => {
   if (isRunning) return;
-  const t = i18n[currentLang];
-  if (homingComplete) { log(t.logDoneAlert); return; }
+  if (homingComplete) {
+    log('已完成回零，请先按重置。', 'Homing already completed. Please click Reset first.');
+    return;
+  }
   isRunning = true;
   currentMode = parseInt(modeSelect.value);
   initStateMachineUI(currentMode);
-  log(t.logStart + currentMode + t.logStartPos + position.toFixed(1));
+  log(`开始方法 ${currentMode} 回零，起始位置 ${position.toFixed(1)}`, `Starting Method ${currentMode} homing, initial position: ${position.toFixed(1)} u`);
   btnStart.disabled = true;
 });
 
@@ -1007,12 +1114,12 @@ btnReset.addEventListener('click', () => {
   prevSensorPOT = sensorPOT; prevSensorINDEX = sensorINDEX;
   prevSensorSTALL = sensorSTALL;
   btnStart.disabled = false;
-  const t = i18n[currentLang];
-  log(t.logReset + position.toFixed(1));
+  log(`系统已重置。初始位置：${position.toFixed(1)}`, `System reset. Initial position: ${position.toFixed(1)} u`);
   render();
 });
 
 btnClearLog.addEventListener('click', () => {
+  logHistory.length = 0;
   const t = i18n[currentLang];
   eventLog.innerHTML = `<div class="text-gray-600">${t.logCleared}</div>`;
 });
@@ -1030,9 +1137,8 @@ function init() {
   prevSensorSTALL = sensorSTALL;
   render();
   requestAnimationFrame(mainLoop);
-  const t = i18n[currentLang];
-  log(t.logInit);
-  log(t.logAxisInfo);
+  log('CiA 402 回零模拟器已初始化', 'CiA 402 Homing Simulator initialized');
+  log('轴行程：0–1000 u | 原点：500 u | Index间隔：40 u', 'Travel: 0–1000 u | Home: 500 u | Index interval: 40 u');
 }
 
 function mainLoop(timestamp) {
