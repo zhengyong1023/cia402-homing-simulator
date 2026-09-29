@@ -821,8 +821,9 @@ function setLanguage(lang) {
 
 // === UI 坐标映射工具函数 ===
 function posToPixels(pos) {
-  const container = axisContainer.getBoundingClientRect();
-  const usableWidth = container.width - 32;
+  const rect = axisContainer ? axisContainer.getBoundingClientRect() : null;
+  const width = (rect && rect.width > 64) ? rect.width : ((axisContainer && axisContainer.clientWidth > 64) ? axisContainer.clientWidth : 800);
+  const usableWidth = Math.max(100, width - 32);
   return 16 + (pos / AXIS_MAX) * usableWidth;
 }
 
@@ -1057,11 +1058,26 @@ function createIndexMarkers() {
   }
 }
 
-if (document.fonts && document.fonts.ready) {
-  document.fonts.ready.then(() => { createIndexMarkers(); init(); });
-} else {
-  window.addEventListener('load', () => { createIndexMarkers(); init(); });
+// === 启动生命周期（脱离外部网络字体依赖，确保零延迟秒级呈现） ===
+function startApp() {
+  createIndexMarkers();
+  init();
 }
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startApp);
+} else {
+  startApp();
+}
+
+// 外部字体就绪仅作排版微调重绘，绝不阻塞启动
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => {
+    createIndexMarkers();
+    render();
+  }).catch(() => {});
+}
+
 window.addEventListener('resize', () => { createIndexMarkers(); render(); });
 </script>
 <footer class="max-w-6xl mx-auto mt-8 mb-4 text-center text-xs font-mono text-white/20">
