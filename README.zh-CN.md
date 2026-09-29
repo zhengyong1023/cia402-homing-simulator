@@ -1,8 +1,17 @@
 # CiA 402 回零模式交互式仿真器
 
-[English](README.md) | [简体中文](README_zh.md)
+<p align="center">
+  <a href="README.md">English</a> &nbsp;|&nbsp; <b>简体中文</b>
+</p>
 
-> 🚀 **在线运行 (Live Demo)**：[https://zhengyong1023.github.io/cia402-homing-simulator/](https://zhengyong1023.github.io/cia402-homing-simulator/)
+<p align="center">
+  <a href="https://zhengyong1023.github.io/cia402-homing-simulator/" target="_blank">
+    <img src="https://img.shields.io/badge/Live%20Demo-在线仿真器-brightgreen?style=flat-square&logo=google-chrome&logoColor=white" alt="在线运行">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License: MIT">
+  </a>
+</p>
 
 专为运动控制工程师、固件开发人员及自动化工程师设计的交互式 Web 仿真工具，用于可视化学习、验证与调试 **CiA 402 (CANopen / EtherCAT)** 协议中的各类回零方式（Homing Methods）与状态机跳转逻辑。
 
@@ -131,7 +140,7 @@ npx serve .
 │   └── homing-logic.js               # 核心回零状态机与物理动力学引擎（纯 JS）
 ├── LICENSE                           # MIT 开源授权协议
 ├── README.md                         # 英文版项目文档 (English)
-└── README_zh.md                      # 中文版项目文档 (简体中文)
+└── README.zh-CN.md                   # 中文版项目文档 (简体中文)
 ```
 
 ### 架构亮点

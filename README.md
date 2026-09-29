@@ -1,8 +1,17 @@
 # CiA 402 Homing Mode Interactive Simulator
 
-[English](README.md) | [简体中文](README_zh.md)
+<p align="center">
+  <b>English</b> &nbsp;|&nbsp; <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-> 🚀 **Live Demo**: [https://zhengyong1023.github.io/cia402-homing-simulator/](https://zhengyong1023.github.io/cia402-homing-simulator/)
+<p align="center">
+  <a href="https://zhengyong1023.github.io/cia402-homing-simulator/" target="_blank">
+    <img src="https://img.shields.io/badge/Live%20Demo-Online%20Simulator-brightgreen?style=flat-square&logo=google-chrome&logoColor=white" alt="Live Demo">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License: MIT">
+  </a>
+</p>
 
 An interactive, web-based simulation tool designed for motion control engineers, firmware developers, and automation specialists to visualize, study, and verify **CiA 402 (CANopen / EtherCAT)** homing methods and state-machine transitions.
 
@@ -131,7 +140,7 @@ Then navigate to `http://localhost:8080/src/cia402-homing-simulator.html`.
 │   └── homing-logic.js               # Core homing state machine and physics engine (Pure JS)
 ├── LICENSE                           # MIT License
 ├── README.md                         # English project documentation
-└── README_zh.md                      # Chinese project documentation
+└── README.zh-CN.md                   # Chinese project documentation
 ```
 
 ### Architecture Highlights
