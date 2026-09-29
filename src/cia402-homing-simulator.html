@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CiA 402 回零模式模拟器</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="%2300e5ff"/><circle cx="12" cy="12" r="9" fill="none" stroke="%230f0f1a" stroke-width="2"/><circle cx="12" cy="12" r="3.5" fill="none" stroke="%230f0f1a" stroke-width="2"/><line x1="12" y1="0.5" x2="12" y2="5" stroke="%230f0f1a" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="23.5" stroke="%230f0f1a" stroke-width="2" stroke-linecap="round"/><line x1="0.5" y1="12" x2="5" y2="12" stroke="%230f0f1a" stroke-width="2" stroke-linecap="round"/><line x1="19" y1="12" x2="23.5" y2="12" stroke="%230f0f1a" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="%230f0f1a"/></svg>'>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Exo+2:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        display: ['"Exo 2"', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
+      },
+      colors: {
+        panel: '#1a1a2e',
+        panelLight: '#22223a',
+        bg: '#0f0f1a',
+        accent: '#00e5ff',
+        accentDim: '#007a8a',
+        homeGreen: '#00e676',
+        limitRed: '#ff1744',
+        motorBlue: '#2979ff',
+        indexYellow: '#ffd600',
+        warnOrange: '#ff9100',
+        doneGreen: '#69f0ae',
+        stallPurple: '#d500f9',
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body { background: #0f0f1a; font-family: 'Exo 2', sans-serif; overflow-x: hidden; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #0f0f1a; }
+  ::-webkit-scrollbar-thumb { background: #00e5ff33; border-radius: 3px; }
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .glow-line { box-shadow: 0 0 8px rgba(0,229,255,0.4), 0 0 20px rgba(0,229,255,0.1); }
+  .motor-body {
+    background: linear-gradient(180deg, #448aff 0%, #1565c0 40%, #0d47a1 100%);
+    box-shadow: 0 0 20px rgba(41,121,255,0.5), 0 4px 12px rgba(0,0,0,0.6),
+      inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -2px 4px rgba(0,0,0,0.3);
+    opacity: 0.6;
+  }
+  .sensor-indicator { transition: all 0.15s ease; }
+  .sensor-active { filter: brightness(1.8) drop-shadow(0 0 8px currentColor); }
+  .state-badge { animation: pulse-badge 2s ease-in-out infinite; }
+  @keyframes pulse-badge { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+  .scan-line {
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0,229,255,0.6), transparent);
+    animation: scan 4s linear infinite; pointer-events: none;
+  }
+  @keyframes scan { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+  .led-on { box-shadow: 0 0 6px 2px currentColor; }
+  .led-off { opacity: 0.25; }
+  select, input[type=number] {
+    background: #16162a; border: 1px solid #00e5ff33; color: #e0e0e0;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    padding: 6px 10px; border-radius: 6px; outline: none; transition: border-color 0.2s;
+  }
+  select:focus, input[type=number]:focus { border-color: #00e5ff; box-shadow: 0 0 0 2px rgba(0,229,255,0.15); }
+  .btn-primary {
+    background: linear-gradient(135deg, #00e5ff, #0097a7); color: #0f0f1a;
+    font-weight: 700; padding: 8px 20px; border-radius: 6px; border: none;
+    cursor: pointer; font-family: 'Exo 2', sans-serif; font-size: 14px;
+    transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
+  }
+  .btn-primary:hover { filter: brightness(1.15); transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; filter: none; }
+  .btn-reset {
+    background: linear-gradient(135deg, #424242, #616161); color: #e0e0e0;
+    font-weight: 600; padding: 8px 20px; border-radius: 6px; border: none;
+    cursor: pointer; font-family: 'Exo 2', sans-serif; font-size: 14px;
+    transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
+  }
+  .btn-reset:hover { filter: brightness(1.2); }
+  .diagnostic-row { border-bottom: 1px solid rgba(0,229,255,0.08); padding: 4px 0; }
+  .axis-ruler {
+    background: repeating-linear-gradient(90deg, rgba(0,229,255,0.15) 0px, rgba(0,229,255,0.15) 1px, transparent 1px, transparent 50px);
+  }
+  .index-marker { width: 2px; height: 8px; background: #ffd600; position: absolute; bottom: 0; opacity: 0.5; }
+  .limit-zone { position: absolute; top: 0; bottom: 0; opacity: 0.08; pointer-events: none; }
+  optgroup { color: #00e5ff; background: #16162a; }
+  option { color: #e0e0e0; background: #16162a; }
+</style>
+</head>
+<body class="grid-bg min-h-screen text-gray-200 p-4 md:p-6">
+
+<header class="max-w-6xl mx-auto mb-6">
+  <div class="flex items-center justify-between border-b border-white/5 pb-4">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-accent to-accentDim flex items-center justify-center">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0f0f1a" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="9"/>
+          <circle cx="12" cy="12" r="3.5"/>
+          <line x1="12" y1="0.5" x2="12" y2="5"/>
+          <line x1="12" y1="19" x2="12" y2="23.5"/>
+          <line x1="0.5" y1="12" x2="5" y2="12"/>
+          <line x1="19" y1="12" x2="23.5" y2="12"/>
+          <circle cx="12" cy="12" r="1.2" fill="#0f0f1a" stroke="none"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-2xl font-display font-800 tracking-tight text-white">CiA 402 回零模拟器</h1>
+        <p class="text-xs font-mono text-accentDim tracking-widest uppercase">CANopen 驱动规范 — 回零模式</p>
+      </div>
+    </div>
+    <div class="text-right font-mono text-xs text-gray-500 bg-panelLight/40 px-3 py-1.5 rounded-md border border-white/5">
+      <span class="text-gray-600">作者：</span><span class="text-accent font-bold">Kevin</span>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="lg:col-span-2 space-y-4">
+    <div class="bg-panel rounded-xl border border-white/5 overflow-hidden relative">
+      <div class="scan-line"></div>
+      <div class="px-5 py-3 border-b border-white/5 flex items-center justify-between">
+        <span class="font-display font-600 text-sm text-white tracking-wide">运动轴</span>
+        <div class="flex items-center gap-3">
+          <span id="stateBadge" class="state-badge text-xs font-mono font-700 px-3 py-1 rounded-full bg-gray-700/50 text-gray-400">空闲</span>
+        </div>
+      </div>
+      <div class="p-5">
+        <div id="axisContainer" class="relative h-28 select-none" style="min-height:112px;">
+          <div id="sensorLabels" class="absolute top-0 left-0 right-0 h-5 pointer-events-none z-20">
+            <div id="labelNOT" class="absolute flex items-center gap-1 -translate-x-1/2" style="top:2px;">
+              <div id="ledNOT" class="w-3 h-3 rounded-full bg-limitRed led-off sensor-indicator" title="负限位 (NOT)"></div>
+              <span class="text-[10px] font-mono text-gray-500 whitespace-nowrap">负限位</span>
+            </div>
+            <div id="labelHOME" class="absolute flex items-center gap-1 -translate-x-1/2" style="top:2px;">
+              <div id="ledHOME" class="w-3 h-3 rounded-full bg-homeGreen led-off sensor-indicator" title="原点开关"></div>
+              <span class="text-[10px] font-mono text-gray-500 whitespace-nowrap">原点</span>
+            </div>
+            <div id="labelPOT" class="absolute flex items-center gap-1 -translate-x-1/2" style="top:2px;">
+              <div id="ledPOT" class="w-3 h-3 rounded-full bg-limitRed led-off sensor-indicator" title="正限位 (POT)"></div>
+              <span class="text-[10px] font-mono text-gray-500 whitespace-nowrap">正限位</span>
+            </div>
+            <div id="labelINDEX" class="absolute flex items-center gap-1 -translate-x-1/2" style="top:2px;">
+              <div id="ledINDEX" class="w-3 h-3 rounded-full bg-indexYellow led-off sensor-indicator" title="Index 脉冲 (Z相)"></div>
+              <span class="text-[10px] font-mono text-gray-500 whitespace-nowrap">Z相</span>
+            </div>
+            <div id="labelSTALL" class="absolute flex items-center gap-1 -translate-x-1/2" style="top:2px;">
+              <div id="ledSTALL" class="w-3 h-3 rounded-full bg-stallPurple led-off sensor-indicator" title="堵转信号"></div>
+              <span class="text-[10px] font-mono text-gray-500 whitespace-nowrap">堵转</span>
+            </div>
+          </div>
+          <div class="absolute left-4 right-4 top-1/2 -translate-y-1/2 h-1.5 bg-gray-800 rounded-full glow-line"></div>
+          <div class="absolute left-4 right-4 top-1/2 translate-y-4 h-px axis-ruler"></div>
+          <div id="indexMarkers" class="absolute left-4 right-4 top-1/2 translate-y-5"></div>
+          <div id="switchNOT" class="absolute top-1/2 -translate-y-1/2 h-16 rounded-sm bg-gradient-to-b from-red-600/40 to-red-900/40 border border-red-500/30 flex items-center justify-center" style="left:16px;">
+            <span class="text-[10px] font-mono text-red-300 font-bold -rotate-90 whitespace-nowrap pointer-events-none">L−</span>
+          </div>
+          <div id="switchHOME" class="absolute top-1/2 -translate-y-1/2 h-16 rounded-sm bg-gradient-to-b from-green-600/60 to-green-900/60 border border-green-500/40 flex items-center justify-center shadow-lg" style="z-index:5;">
+            <span class="text-[7px] font-mono text-green-300 font-bold -rotate-90 whitespace-nowrap pointer-events-none">HOME</span>
+          </div>
+          <div id="switchPOT" class="absolute top-1/2 -translate-y-1/2 h-16 rounded-sm bg-gradient-to-b from-red-600/40 to-red-900/40 border border-red-500/30 flex items-center justify-center" style="right:16px;">
+            <span class="text-[10px] font-mono text-red-300 font-bold -rotate-90 whitespace-nowrap pointer-events-none">L+</span>
+          </div>
+          <div id="motorSlider" class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-12 h-12 rounded-lg motor-body flex items-center justify-center cursor-default z-10">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.9">
+              <rect x="3" y="6" width="18" height="12" rx="2"/>
+              <circle cx="12" cy="12" r="3"/>
+              <line x1="12" y1="9" x2="12" y2="12"/>
+            </svg>
+          </div>
+          <div id="posMarkers" class="absolute left-4 right-4 top-1/2 translate-y-8 flex justify-between pointer-events-none"></div>
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+          <span class="text-[10px] font-mono text-gray-500 w-16 uppercase">速度</span>
+          <div class="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden relative">
+            <div id="velocityBar" class="h-full bg-gradient-to-r from-accent to-motorBlue rounded-full transition-all duration-100" style="width:0%"></div>
+          </div>
+          <span id="velocityText" class="text-[11px] font-mono text-accent w-20 text-right">0.0 u/s</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-panel rounded-xl border border-white/5 overflow-hidden">
+      <div class="px-5 py-3 border-b border-white/5">
+        <span class="font-display font-600 text-sm text-white tracking-wide">控制面板</span>
+      </div>
+      <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-[10px] font-mono text-gray-500 uppercase mb-1.5 tracking-wider">回零方法</label>
+          <select id="modeSelect" class="w-full">
+            <optgroup label="堵转回零">
+              <option value="-6">方法 -6 — 低速反转堵转</option>
+              <option value="-5">方法 -5 — 低速正转堵转</option>
+              <option value="-4">方法 -4 — 高速反转堵转后反向</option>
+              <option value="-3">方法 -3 — 高速正转堵转后反向</option>
+              <option value="-2">方法 -2 — 反转堵转后找Z相</option>
+              <option value="-1">方法 -1 — 正转堵转后找Z相</option>
+            </optgroup>
+            
+            <optgroup label="限位开关信号+Z信号模式">
+              <option value="1" selected>方法 1 — 负限位+Z相，离开限位找Z相</option>
+              <option value="2">方法 2 — 正限位+Z相，离开限位找Z相</option>
+            </optgroup>
+            
+            <optgroup label="原点开关信号+Z信号模式">
+              <option value="3">方法 3 — 正向 原点+Z相,原点外找Z相</option>
+              <option value="4">方法 4 — 正向 原点+Z相,原点内找Z相</option>
+              <option value="5">方法 5 — 负向 原点+Z相,原点外找Z相</option>
+              <option value="6">方法 6 — 负向 原点+Z相,原点内找Z相</option>
+            </optgroup>
+            
+            <optgroup label="限位开关信号+原点开关信号+Z信号模式">
+              <option value="7">方法 7 — 正向 原点左侧，原点外找Z信号</option>
+              <option value="8">方法 8 — 正向 原点左侧，原点内找Z信号</option>
+              <option value="9">方法 9 — 正向 原点右侧，原点内找Z信号</option>
+              <option value="10">方法 10 — 正向 原点右侧，原点外找Z信号</option>
+              <option value="11">方法 11 — 负向 原点右侧，原点外找Z信号</option>
+              <option value="12">方法 12 — 负向 原点右侧，原点内找Z信号</option>
+              <option value="13">方法 13 — 负向 原点左侧，原点内找Z信号</option>
+              <option value="14">方法 14 — 负向 原点左侧，原点外找Z信号</option>
+            </optgroup>
+            
+            <optgroup label="限位开关边缘检测">
+              <option value="17">方法 17 — 负限位边缘检测，停在限位外</option>
+              <option value="18">方法 18 — 正限位边缘检测，停在限位外</option>
+            </optgroup>
+            
+            <optgroup label="原点开关边缘检测">
+              <option value="19">方法 19 — 正向 原点边缘检测,停在原点外</option>
+              <option value="20">方法 20 — 正向 原点边缘检测,停在原点内</option>
+              <option value="21">方法 21 — 负向 原点边缘检测,停在原点外</option>
+              <option value="22">方法 22 — 负向 原点边缘检测,停在原点内</option>
+            </optgroup>
+            
+            <optgroup label="限位开关信号+原点开关边缘检测">
+              <option value="23">方法 23 — 正向 原点左侧边缘，停在原点外</option>
+              <option value="24">方法 24 — 正向 原点左侧边缘，停在原点内</option>
+              <option value="25">方法 25 — 正向 原点右侧边缘，停在原点内</option>
+              <option value="26">方法 26 — 正向 原点右侧边缘，停在原点外</option>
+              <option value="27">方法 27 — 负向 原点右侧边缘，停在原点外</option>
+              <option value="28">方法 28 — 负向 原点右侧边缘，停在原点内</option>
+              <option value="29">方法 29 — 负向 原点左侧边缘，停在原点内</option>
+              <option value="30">方法 30 — 负向 原点左侧边缘，停在原点外</option>
+            </optgroup>
+            
+            <optgroup label="其他模式">
+              <option value="33">方法 33 — 负向运动，第一个Z相=原点</option>
+              <option value="34">方法 34 — 正向运动，第一个Z相=原点</option>
+              <option value="35">方法 35/37 — 当前位置直接设为原点，电机不旋转</option>
+            </optgroup>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-mono text-gray-500 uppercase mb-1.5 tracking-wider">初始位置</label>
+          <select id="posSelect" class="w-full">
+            <option value="left">原点开关左侧</option>
+            <option value="onhome">位于原点开关上</option>
+            <option value="right">原点开关右侧</option>
+            <option value="leftlimit">靠近负限位</option>
+            <option value="rightlimit">靠近正限位</option>
+            <option value="onneglimit">位于负限位</option>
+            <option value="onposlimit">位于正限位</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-mono text-gray-500 uppercase mb-1.5 tracking-wider">回零高速 (u/s)</label>
+          <input type="number" id="homingVelHigh" value="80" min="10" max="200" step="10" class="w-full">
+        </div>
+        <div>
+          <label class="block text-[10px] font-mono text-gray-500 uppercase mb-1.5 tracking-wider">回零低速 (u/s)</label>
+          <input type="number" id="homingVelLow" value="10" min="5" max="100" step="5" class="w-full">
+        </div>
+        <div class="flex items-end gap-3">
+          <button id="btnStart" class="btn-primary flex-1">▶ 开始</button>
+          <button id="btnReset" class="btn-reset flex-1">↺ 重置</button>
+        </div>
+      </div>
+      <div class="px-5 pb-4">
+        <div id="modeDesc" class="text-xs font-mono text-gray-400 bg-black/30 rounded-lg p-3 border border-white/5 leading-relaxed"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="space-y-4">
+    <div class="bg-panel rounded-xl border border-white/5 overflow-hidden">
+      <div class="px-5 py-3 border-b border-white/5 flex items-center gap-2">
+        <div class="w-2 h-2 rounded-full bg-accent animate-pulse"></div>
+        <span class="font-display font-600 text-sm text-white tracking-wide">诊断信息</span>
+      </div>
+      <div class="p-4 font-mono text-xs space-y-1" id="diagnostics">
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">位置</span><span id="diagPos" class="text-white">0.00 u</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">速度</span><span id="diagVel" class="text-white">0.00 u/s</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">方向</span><span id="diagDir" class="text-gray-400">—</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">原点开关</span><span id="diagHome" class="text-gray-500">低</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">负限位</span><span id="diagNOT" class="text-gray-500">低</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">正限位</span><span id="diagPOT" class="text-gray-500">低</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">Index脉冲</span><span id="diagIdx" class="text-gray-500">低</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">堵转信号</span><span id="diagStall" class="text-gray-500">低</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">回零状态</span><span id="diagState" class="text-gray-400">空闲</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">子状态</span><span id="diagSubState" class="text-gray-500">—</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">方法</span><span id="diagMode" class="text-accent">1</span></div>
+      </div>
+    </div>
+    <div class="bg-panel rounded-xl border border-white/5 overflow-hidden">
+      <div class="px-5 py-3 border-b border-white/5 flex items-center justify-between">
+        <span class="font-display font-600 text-sm text-white tracking-wide">事件日志</span>
+        <button id="btnClearLog" class="text-[10px] font-mono text-gray-500 hover:text-accent transition-colors cursor-pointer">清除</button>
+      </div>
+      <div id="eventLog" class="p-3 font-mono text-[11px] space-y-0.5 max-h-64 overflow-y-auto">
+        <div class="text-gray-600">就绪。</div>
+      </div>
+    </div>
+    <div class="bg-panel rounded-xl border border-white/5 overflow-hidden">
+      <div class="px-5 py-3 border-b border-white/5">
+        <span class="font-display font-600 text-sm text-white tracking-wide">轴配置</span>
+      </div>
+      <div class="p-4 font-mono text-xs space-y-1">
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">轴行程范围</span><span class="text-white">0 — 1000 u</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">原点位置</span><span class="text-homeGreen" id="homePosText">500 u</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">负限位位置</span><span class="text-limitRed">10 u</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">正限位位置</span><span class="text-limitRed">990 u</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">Index间隔</span><span class="text-indexYellow">100 u</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">原点宽度</span><span class="text-homeGreen">60 u</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">回零高速</span><span class="text-motorBlue" id="cfgHighVel">80 u/s</span></div>
+        <div class="diagnostic-row flex justify-between"><span class="text-gray-500">回零低速</span><span class="text-warnOrange" id="cfgLowVel">10 u/s</span></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="homing-logic.js"></script>
+<script>
+// ============================================================
+// CiA 402 回零模拟器 — UI 层
+// 回零逻辑见 homing-logic.js
+// ============================================================
+
+// === DOM 引用 ===
+const motorSlider = document.getElementById('motorSlider');
+const axisContainer = document.getElementById('axisContainer');
+const switchHOME = document.getElementById('switchHOME');
+const switchNOT = document.getElementById('switchNOT');
+const switchPOT = document.getElementById('switchPOT');
+const ledNOT = document.getElementById('ledNOT');
+const ledHOME = document.getElementById('ledHOME');
+const ledPOT = document.getElementById('ledPOT');
+const ledINDEX = document.getElementById('ledINDEX');
+const ledSTALL = document.getElementById('ledSTALL');
+const labelNOT = document.getElementById('labelNOT');
+const labelHOME = document.getElementById('labelHOME');
+const labelPOT = document.getElementById('labelPOT');
+const labelINDEX = document.getElementById('labelINDEX');
+const labelSTALL = document.getElementById('labelSTALL');
+const velocityBar = document.getElementById('velocityBar');
+const velocityText = document.getElementById('velocityText');
+const stateBadge = document.getElementById('stateBadge');
+const modeSelect = document.getElementById('modeSelect');
+const posSelect = document.getElementById('posSelect');
+const btnStart = document.getElementById('btnStart');
+const btnReset = document.getElementById('btnReset');
+const btnClearLog = document.getElementById('btnClearLog');
+const modeDesc = document.getElementById('modeDesc');
+const eventLog = document.getElementById('eventLog');
+const homingVelHigh = document.getElementById('homingVelHigh');
+const homingVelLow = document.getElementById('homingVelLow');
+const cfgHighVel = document.getElementById('cfgHighVel');
+const cfgLowVel = document.getElementById('cfgLowVel');
+
+const diagPos = document.getElementById('diagPos');
+const diagVel = document.getElementById('diagVel');
+const diagDir = document.getElementById('diagDir');
+const diagHome = document.getElementById('diagHome');
+const diagNOT = document.getElementById('diagNOT');
+const diagPOT = document.getElementById('diagPOT');
+const diagIdx = document.getElementById('diagIdx');
+const diagStall = document.getElementById('diagStall');
+const diagState = document.getElementById('diagState');
+const diagSubState = document.getElementById('diagSubState');
+const diagMode = document.getElementById('diagMode');
+
+// === UI 工具函数 ===
+function posToPixels(pos) {
+  const container = axisContainer.getBoundingClientRect();
+  const usableWidth = container.width - 32;
+  return 16 + (pos / AXIS_MAX) * usableWidth;
+}
+
+function log(msg) {
+  const time = new Date().toLocaleTimeString('en-GB', {hour12:false});
+  const div = document.createElement('div');
+  div.className = 'text-gray-400';
+  div.innerHTML = `<span class="text-gray-600">[${time}]</span> ${msg}`;
+  eventLog.appendChild(div);
+  eventLog.scrollTop = eventLog.scrollHeight;
+}
+
+// === 传感器 UI ===
+function updateSensorUI() {
+  ledNOT.className = 'w-3 h-3 rounded-full sensor-indicator ' + (sensorNOT ? 'bg-limitRed led-on' : 'bg-limitRed led-off');
+  ledHOME.className = 'w-3 h-3 rounded-full sensor-indicator ' + (sensorHOME ? 'bg-homeGreen led-on' : 'bg-homeGreen led-off');
+  ledPOT.className = 'w-3 h-3 rounded-full sensor-indicator ' + (sensorPOT ? 'bg-limitRed led-on' : 'bg-limitRed led-off');
+  ledINDEX.className = 'w-3 h-3 rounded-full sensor-indicator ' + (sensorINDEX ? 'bg-indexYellow led-on' : 'bg-indexYellow led-off');
+  ledSTALL.className = 'w-3 h-3 rounded-full sensor-indicator ' + (sensorSTALL ? 'bg-stallPurple led-on' : 'bg-stallPurple led-off');
+}
+
+// === 渲染 ===
+function render() {
+  const px = posToPixels(position);
+  motorSlider.style.left = px + 'px';
+  const velPct = Math.min(100, (Math.abs(velocity) / 200) * 100);
+  velocityBar.style.width = velPct + '%';
+  velocityText.textContent = Math.abs(velocity).toFixed(1) + ' u/s';
+  // 开关宽度 = 信号区域宽度 (motor半宽24u + switch半宽10u = 34u)
+  const halfPx = posToPixels(34) - posToPixels(0);
+  switchNOT.style.left = (posToPixels(NOT_POS) - halfPx) + 'px';
+  switchNOT.style.width = (halfPx * 2) + 'px';
+  const homeHalfPx = posToPixels(HOME_SWITCH_HALF_WIDTH) - posToPixels(0);
+  switchHOME.style.left = (posToPixels(HOME_SWITCH_CENTER) - homeHalfPx) + 'px';
+  switchHOME.style.width = (homeHalfPx * 2) + 'px';
+  switchPOT.style.left = (posToPixels(POT_POS) - halfPx) + 'px';
+  switchPOT.style.width = (halfPx * 2) + 'px';
+  // 传感器标签对齐开关中心
+  labelNOT.style.left = posToPixels(NOT_POS) + 'px';
+  labelHOME.style.left = posToPixels(HOME_SWITCH_CENTER) + 'px';
+  labelPOT.style.left = posToPixels(POT_POS) + 'px';
+  // Z相放在负限位与原点之间的空位，堵转放在原点与正限位之间的空位
+  labelINDEX.style.left = (posToPixels(NOT_POS) + posToPixels(HOME_SWITCH_CENTER)) / 2 + 'px';
+  labelSTALL.style.left = (posToPixels(HOME_SWITCH_CENTER) + posToPixels(POT_POS)) / 2 + 'px';
+  updateSensorUI();
+  updateDiagnostics();
+}
+
+// === 翻译 ===
+const stateLabels = {
+  'IDLE': '空闲', 'SEEKING': '搜索中', 'BACKING OFF': '退回中',
+  'INDEX SEARCH': '搜索Index', 'HOMED': '回零完成', 'MOVING': '运动中',
+  'WAITING': '等待中', 'ERROR': '错误', 'SEEKING HOME': '搜索原点',
+  'THROUGH HOME': '穿过原点', 'RETURNING': '返回中',
+};
+const subStateLabels = {
+  'Moving negative': '负向移动', 'Moving positive': '正向移动',
+  'Stall detected': '堵转检测到', 'Torque released': '转矩消失',
+  'Seeking Z-phase': '搜索Z相', 'Leaving home zone': '离开原点区域',
+  'Waiting for home active': '等待原点信号有效',
+  'Waiting for home inactive': '等待原点信号无效',
+  'Leaving limit': '离开限位', 'Reversing': '反转中',
+  'Index found': 'Index已找到', 'Direct Z search': '直接搜索Z相',
+  'Homing at current position': '当前位置即原点',
+  'Limit error': '限位错误', 'Edge detected': '边缘检测到',
+  'No Z found': '未找到Z相',
+};
+function translateState(s) { return stateLabels[s] || s; }
+function translateSubState(s) {
+  if (!s) return '—';
+  for (const [en, zh] of Object.entries(subStateLabels)) {
+    if (s.startsWith(en)) return s.replace(en, zh);
+  }
+  return s;
+}
+
+// === 诊断面板 ===
+function updateDiagnostics() {
+  diagPos.textContent = position.toFixed(1) + ' u';
+  diagVel.textContent = Math.abs(velocity).toFixed(1) + ' u/s';
+  diagDir.textContent = currentDirection > 0 ? '→ 正向' : currentDirection < 0 ? '← 负向' : '— 停止';
+  diagDir.className = currentDirection > 0 ? 'text-motorBlue' : currentDirection < 0 ? 'text-warnOrange' : 'text-gray-400';
+  diagHome.textContent = sensorHOME ? '高' : '低';
+  diagHome.className = sensorHOME ? 'text-homeGreen font-bold' : 'text-gray-500';
+  diagNOT.textContent = sensorNOT ? '高' : '低';
+  diagNOT.className = sensorNOT ? 'text-limitRed font-bold' : 'text-gray-500';
+  diagPOT.textContent = sensorPOT ? '高' : '低';
+  diagPOT.className = sensorPOT ? 'text-limitRed font-bold' : 'text-gray-500';
+  diagIdx.textContent = sensorINDEX ? '高' : '低';
+  diagIdx.className = sensorINDEX ? 'text-indexYellow font-bold' : 'text-gray-500';
+  diagStall.textContent = sensorSTALL ? '高' : '低';
+  diagStall.className = sensorSTALL ? 'text-stallPurple font-bold' : 'text-gray-500';
+  diagState.textContent = translateState(homingState);
+  diagState.className = homingComplete ? 'text-doneGreen font-bold' : homingState !== 'IDLE' ? 'text-accent font-bold' : 'text-gray-400';
+  diagSubState.textContent = translateSubState(subState);
+  diagMode.textContent = currentMode;
+  if (homingComplete) {
+    stateBadge.textContent = '回零完成 ✓';
+    stateBadge.className = 'state-badge text-xs font-mono font-700 px-3 py-1 rounded-full bg-doneGreen/20 text-doneGreen';
+  } else if (homingState !== 'IDLE') {
+    stateBadge.textContent = translateState(homingState);
+    stateBadge.className = 'state-badge text-xs font-mono font-700 px-3 py-1 rounded-full bg-accent/20 text-accent';
+  } else {
+    stateBadge.textContent = '空闲';
+    stateBadge.className = 'state-badge text-xs font-mono font-700 px-3 py-1 rounded-full bg-gray-700/50 text-gray-400';
+  }
+}
+
+// === 状态管理（桥接逻辑层与 UI） ===
+function setState(state, sub) {
+  homingState = state;
+  subState = sub || '';
+  updateDiagnostics();
+}
+
+function completeHoming(reason) {
+  stopMotor();
+  homingComplete = true;
+  isRunning = false;
+  setState('HOMED', reason);
+  log('方法 ' + currentMode + '：' + reason + ' → 回零完成');
+  btnStart.disabled = false;
+}
+
+function triggerError(reason) {
+  stopMotor();
+  isRunning = false;
+  setState('ERROR', reason);
+  log('方法 ' + currentMode + '：错误 — ' + reason);
+  btnStart.disabled = false;
+}
+
+// === 回零状态机初始化（读取 DOM 输入） ===
+function initStateMachineUI(mode) {
+  const highVel = parseInt(homingVelHigh.value) || 80;
+  const lowVel = parseInt(homingVelLow.value) || 10;
+  initStateMachine(mode, highVel, lowVel);
+}
+
+// ============================================================
+// MODE DESCRIPTIONS
+// ============================================================
+const modeDescriptions = {
+  '-6': `<strong class="text-white">方法 -6</strong> — 低速反转堵转回零。<br>电机低速反向运动，发生堵转后立即停止，以堵转位置为原点。<br><span class="text-gray-500">堵转信号触发：OD 5000-04 bit1=1。</span>`,
+  '-5': `<strong class="text-white">方法 -5</strong> — 低速正转堵转回零。<br>电机低速正向运动，发生堵转后立即停止，以堵转位置为原点。<br><span class="text-gray-500">堵转信号触发：OD 5000-04 bit1=1。</span>`,
+  '-4': `<strong class="text-white">方法 -4</strong> — 高速反转堵转后反向。<br>电机高速反向运动，堵转后立即反向运动，转矩到达消失后停止，以该位置为原点。<br><span class="text-gray-500">堵转回零误差限值：OD 0x22ef 默认=2000脉冲。</span>`,
+  '-3': `<strong class="text-white">方法 -3</strong> — 高速正转堵转后反向。<br>电机高速正向运动，堵转后立即反向运动，转矩到达消失后停止，以该位置为原点。<br><span class="text-gray-500">堵转回零误差限值：OD 0x22ef 默认=2000脉冲。</span>`,
+  '-2': `<strong class="text-white">方法 -2</strong> — 反转堵转后找Z相。<br>电机反方向运动，堵转后反转，以第一个Z信号为原点。<br><span class="text-gray-500">Z信号触发：OD 60FD bit31=1。</span>`,
+  '-1': `<strong class="text-white">方法 -1</strong> — 正转堵转后反向找Z相。<br>电机高速正向运动，堵转后反向运动，转矩消失后搜索第一个Z信号为原点。<br><span class="text-gray-500">Z信号触发：OD 60FD bit31=1。</span>`,
+  '1': `<strong class="text-white">方法 1</strong> — <span class="text-limitRed">负限位</span>上升沿 + <span class="text-indexYellow">Z相</span>回零。<br>负向运动 → 负限位触发 → 退回 → 离开后第一个Z相停止。<br><span class="text-gray-500">应用场景：负端硬限位回零。</span>`,
+  '2': `<strong class="text-white">方法 2</strong> — <span class="text-limitRed">正限位</span>上升沿 + <span class="text-indexYellow">Z相</span>回零。<br>正向运动 → 正限位触发 → 退回 → 离开后第一个Z相停止。<br><span class="text-gray-500">应用场景：正端硬限位回零。</span>`,
+  '3': `<strong class="text-white">方法 3</strong> — <span class="text-homeGreen">原点开关</span> + <span class="text-indexYellow">Z相</span>（正向起始，离开后找Z）。<br>正向高速 → 原点有效停止 → 负向低速 → 离开后第一个Z相停止。<br><span class="text-gray-500">含B情况处理：已在原点上时的特殊流程。</span>`,
+  '4': `<strong class="text-white">方法 4</strong> — <span class="text-homeGreen">原点开关</span> + <span class="text-indexYellow">Z相</span>（正向找原点，原点内找Z）。<br>正向高速 → 原点有效停止 → 负向高速 → 原点无效停止 → 正向低速 → 原点有效后第一个Z相。<br><span class="text-gray-500">方法3的对称版本，在原点区域内找Z相。</span>`,
+  '5': `<strong class="text-white">方法 5</strong> — <span class="text-homeGreen">原点开关</span> + <span class="text-indexYellow">Z相</span>（负向起始，离开后找Z）。<br>负向高速 → 原点有效停止 → 正向低速 → 离开后第一个Z相停止。<br><span class="text-gray-500">方法3的对称版本。</span>`,
+  '6': `<strong class="text-white">方法 6</strong> — <span class="text-homeGreen">原点开关</span> + <span class="text-indexYellow">Z相</span>（负向找原点，原点内找Z）。<br>负向高速 → 原点有效停止 → 正向高速 → 离开原点停止 → 负向低速 → 原点有效后第一个Z相。<br><span class="text-gray-500">方法4的对称版本，在原点区域内找Z相。</span>`,
+  '7': `<strong class="text-white">方法 7</strong> — <span class="text-limitRed">限位</span>+<span class="text-homeGreen">原点</span>+<span class="text-indexYellow">Z相</span>（正向，原点有效停止找Z）。<br>A:正向→原点有效停止→负向低速→离开后Z相。C:遇正限位则反向穿过原点。<br><span class="text-gray-500">运动中负限位触发→错误。</span>`,
+  '8': `<strong class="text-white">方法 8</strong> — <span class="text-limitRed">限位</span>+<span class="text-homeGreen">原点</span>+<span class="text-indexYellow">Z相</span>（正向找原点，原点内找Z）。<br>A:正向高速→原点有效停止→负向高速→原点无效停止→正向低速→原点有效后Z相。<br><span class="text-gray-500">含B/C情况。</span>`,
+  '9': `<strong class="text-white">方法 9</strong> — <span class="text-limitRed">限位</span>+<span class="text-homeGreen">原点</span>+<span class="text-indexYellow">Z相</span>（正向，原点有效继续，离开找Z）。<br>A:正向→原点有效继续→离开时停止→负向低速→Z相。<br><span class="text-gray-500">含B/C情况。</span>`,
+  '10': `<strong class="text-white">方法 10</strong> — <span class="text-limitRed">限位</span>+<span class="text-homeGreen">原点</span>+<span class="text-indexYellow">Z相</span>（正向穿过原点，离开后找Z）。<br>A:正向高速→原点有效继续→原点无效停止→负向高速→原点有效停止→正向低速→离开后Z相。<br><span class="text-gray-500">含B/C情况。</span>`,
+  '11': `<strong class="text-white">方法 11</strong> — <span class="text-limitRed">限位</span>+<span class="text-homeGreen">原点</span>+<span class="text-indexYellow">Z相</span>（负向，原点有效停止找Z）。<br>方法7的对称版本，负向起始。<br><span class="text-gray-500">运动中正限位触发→错误。</span>`,
+  '12': `<strong class="text-white">方法 12</strong> — <span class="text-limitRed">限位</span>+<span class="text-homeGreen">原点</span>+<span class="text-indexYellow">Z相</span>（负向找原点，原点内找Z）。<br>A:负向高速→原点有效停止→正向高速→原点无效停止→负向低速→原点有效后Z相。<br><span class="text-gray-500">方法8的对称版本，在原点区域内找Z相。</span>`,
+  '13': `<strong class="text-white">方法 13</strong> — <span class="text-limitRed">限位</span>+<span class="text-homeGreen">原点</span>+<span class="text-indexYellow">Z相</span>（负向，原点有效继续，离开找Z）。<br>方法9的对称版本。<br><span class="text-gray-500">含B/C情况。</span>`,
+  '14': `<strong class="text-white">方法 14</strong> — <span class="text-limitRed">限位</span>+<span class="text-homeGreen">原点</span>+<span class="text-indexYellow">Z相</span>（负向穿过原点，离开后找Z）。<br>A:负向高速→原点有效继续→原点无效停止→正向高速→原点有效停止→负向低速→离开后Z相。<br><span class="text-gray-500">方法10的对称版本。</span>`,
+  '17': `<strong class="text-white">方法 17</strong> — <span class="text-limitRed">负限位</span>边缘检测（无Z相）。<br>负向运动 → 负限位触发 → 反转 → 限位信号无效时停止。<br><span class="text-gray-500">限位边缘位置即原点。</span>`,
+  '18': `<strong class="text-white">方法 18</strong> — <span class="text-limitRed">正限位</span>边缘检测（无Z相）。<br>正向运动 → 正限位触发 → 反转 → 限位信号无效时停止。<br><span class="text-gray-500">限位边缘位置即原点。</span>`,
+  '19': `<strong class="text-white">方法 19</strong> — <span class="text-homeGreen">原点开关</span>边缘检测（正向找原点，离开边缘停止）。<br>类似方法3，但停止条件为原点开关边缘变化。<br><span class="text-gray-500">无需Z相信号。</span>`,
+  '20': `<strong class="text-white">方法 20</strong> — <span class="text-homeGreen">原点开关</span>边缘检测（正向穿过，边缘停止）。<br>类似方法4，但停止条件为原点开关边缘变化。`,
+  '21': `<strong class="text-white">方法 21</strong> — <span class="text-homeGreen">原点开关</span>边缘检测（负向找原点，离开边缘停止）。<br>类似方法5。`,
+  '22': `<strong class="text-white">方法 22</strong> — <span class="text-homeGreen">原点开关</span>边缘检测（负向穿过，边缘停止）。<br>类似方法6。`,
+  '23': `<strong class="text-white">方法 23</strong> — 限位+<span class="text-homeGreen">原点</span>边缘检测（正向）。<br>类似方法7，边缘停止。`,
+  '24': `<strong class="text-white">方法 24</strong> — 限位+<span class="text-homeGreen">原点</span>边缘检测（正向穿过）。<br>类似方法8，边缘停止。`,
+  '25': `<strong class="text-white">方法 25</strong> — 限位+<span class="text-homeGreen">原点</span>边缘检测（正向继续）。<br>类似方法9，边缘停止。`,
+  '26': `<strong class="text-white">方法 26</strong> — 限位+<span class="text-homeGreen">原点</span>边缘检测（正向穿过无效）。<br>类似方法10，边缘停止。`,
+  '27': `<strong class="text-white">方法 27</strong> — 限位+<span class="text-homeGreen">原点</span>边缘检测（负向）。<br>类似方法11，边缘停止。`,
+  '28': `<strong class="text-white">方法 28</strong> — 限位+<span class="text-homeGreen">原点</span>边缘检测（负向穿过）。<br>类似方法12，边缘停止。`,
+  '29': `<strong class="text-white">方法 29</strong> — 限位+<span class="text-homeGreen">原点</span>边缘检测（负向继续）。<br>类似方法13，边缘停止。`,
+  '30': `<strong class="text-white">方法 30</strong> — 限位+<span class="text-homeGreen">原点</span>边缘检测（负向穿过无效）。<br>类似方法14，边缘停止。`,
+  '33': `<strong class="text-white">方法 33</strong> — 负向搜索<span class="text-indexYellow">Z相</span>。<br>电机负向运动，Z相信号有效时停止。<br><span class="text-gray-500">运动中限位/原点触发→错误。</span>`,
+  '34': `<strong class="text-white">方法 34</strong> — 正向搜索<span class="text-indexYellow">Z相</span>。<br>电机正向运动，Z相信号有效时停止。<br><span class="text-gray-500">运动中限位/原点触发→错误。</span>`,
+  '35': `<strong class="text-white">方法 35/37</strong> — 当前位置即原点。<br>电机不旋转，立即以当前位置为原点完成回零。<br><span class="text-gray-500">控制字 6040h bit4 从0到1即可。</span>`,
+};
+
+// ============================================================
+// 初始位置
+// ============================================================
+function setInitialPosition() {
+  const pos = posSelect.value;
+  switch(pos) {
+    case 'left': position = HOME_SWITCH_CENTER - 200; break;
+    case 'onhome': position = HOME_SWITCH_CENTER; break;
+    case 'right': position = HOME_SWITCH_CENTER + 200; break;
+    case 'leftlimit': position = NOT_POS + 50; break;
+    case 'rightlimit': position = POT_POS - 50; break;
+    case 'onneglimit': position = NOT_POS; break;
+    case 'onposlimit': position = POT_POS; break;
+  }
+  velocity = 0; targetVelocity = 0; currentDirection = 0;
+}
+
+// ============================================================
+// 事件处理
+// ============================================================
+modeSelect.addEventListener('change', () => {
+  currentMode = parseInt(modeSelect.value);
+  modeDesc.innerHTML = modeDescriptions[currentMode] || '';
+});
+
+homingVelHigh.addEventListener('change', () => {
+  cfgHighVel.textContent = (parseInt(homingVelHigh.value) || 80) + ' u/s';
+});
+homingVelLow.addEventListener('change', () => {
+  cfgLowVel.textContent = (parseInt(homingVelLow.value) || 10) + ' u/s';
+});
+
+posSelect.addEventListener('change', () => {
+  if (isRunning || homingComplete) return;
+  setInitialPosition();
+  updateSensors();
+  prevSensorHOME = sensorHOME; prevSensorNOT = sensorNOT;
+  prevSensorPOT = sensorPOT; prevSensorINDEX = sensorINDEX;
+  prevSensorSTALL = sensorSTALL;
+  log('初始位置已更改：' + position.toFixed(1));
+  render();
+});
+
+btnStart.addEventListener('click', () => {
+  if (isRunning) return;
+  if (homingComplete) { log('已完成回零，请先按重置。'); return; }
+  isRunning = true;
+  currentMode = parseInt(modeSelect.value);
+  initStateMachineUI(currentMode);
+  log('开始方法 ' + currentMode + ' 回零，起始位置 ' + position.toFixed(1));
+  btnStart.disabled = true;
+});
+
+btnReset.addEventListener('click', () => {
+  isRunning = false; homingComplete = false;
+  velocity = 0; targetVelocity = 0; currentDirection = 0;
+  homingState = 'IDLE'; subState = ''; sm = {};
+  sensorSTALL = false; prevSensorSTALL = false;
+  prevSensorHOME = false; prevSensorNOT = false;
+  prevSensorPOT = false; prevSensorINDEX = false;
+  latchedHomePos = 0; latchedIndexPos = 0; latchedLimitPos = 0;
+  setInitialPosition();
+  updateSensors();
+  prevSensorHOME = sensorHOME; prevSensorNOT = sensorNOT;
+  prevSensorPOT = sensorPOT; prevSensorINDEX = sensorINDEX;
+  prevSensorSTALL = sensorSTALL;
+  btnStart.disabled = false;
+  log('系统已重置。初始位置：' + position.toFixed(1));
+  render();
+});
+
+btnClearLog.addEventListener('click', () => {
+  eventLog.innerHTML = '<div class="text-gray-600">日志已清除。</div>';
+});
+
+// ============================================================
+// 初始化
+// ============================================================
+function init() {
+  currentMode = parseInt(modeSelect.value);
+  modeDesc.innerHTML = modeDescriptions[currentMode] || modeDescriptions['1'];
+  setInitialPosition();
+  updateSensors();
+  prevSensorHOME = sensorHOME; prevSensorNOT = sensorNOT;
+  prevSensorPOT = sensorPOT; prevSensorINDEX = sensorINDEX;
+  prevSensorSTALL = sensorSTALL;
+  render();
+  requestAnimationFrame(mainLoop);
+  log('CiA 402 回零模拟器已初始化');
+  log('轴行程：0–1000 u | 原点：500 u | Index间隔：40 u');
+}
+
+function mainLoop(timestamp) {
+  if (!lastTimestamp) lastTimestamp = timestamp;
+  const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.05);
+  lastTimestamp = timestamp;
+  updatePhysics(dt);
+  updateSensors();
+  if (isRunning && !homingComplete) tickStateMachine(dt);
+  render();
+  requestAnimationFrame(mainLoop);
+}
+
+function createIndexMarkers() {
+  const container = document.getElementById('indexMarkers');
+  container.innerHTML = '';
+  
+  // 修复：将起始点从 -INDEX_INTERVAL 改为 AXIS_MIN (即 0)，去掉负轴多余的刻度
+  for (let i = AXIS_MIN; i <= AXIS_MAX; i += INDEX_INTERVAL) {
+    const marker = document.createElement('div');
+    marker.className = 'index-marker';
+    
+    // 按百分比计算相对位置
+    marker.style.left = ((i / AXIS_MAX) * 100) + '%';
+    
+    // 保证黄色小竖线的几何中心精确对准逻辑触发点
+    marker.style.transform = 'translateX(-50%)';
+    
+    container.appendChild(marker);
+  }
+}
+
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => { createIndexMarkers(); init(); });
+} else {
+  window.addEventListener('load', () => { createIndexMarkers(); init(); });
+}
+window.addEventListener('resize', () => { createIndexMarkers(); render(); });
+</script>
+<footer class="max-w-6xl mx-auto mt-8 mb-4 text-center text-xs font-mono text-white/20">
+  CiA 402 Homing Simulator &mdash; Author: Kevin Zheng<br>
+  &copy; 2026 Kevin Zheng &bull; Distributed under the MIT License
+</footer>
+</body>
+</html>
