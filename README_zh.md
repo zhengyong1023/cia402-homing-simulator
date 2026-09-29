@@ -2,6 +2,8 @@
 
 [English](README.md) | [简体中文](README_zh.md)
 
+> 🚀 **在线运行 (Live Demo)**：[https://zhengyong1023.github.io/cia402-homing-simulator/](https://zhengyong1023.github.io/cia402-homing-simulator/)
+
 专为运动控制工程师、固件开发人员及自动化工程师设计的交互式 Web 仿真工具，用于可视化学习、验证与调试 **CiA 402 (CANopen / EtherCAT)** 协议中的各类回零方式（Homing Methods）与状态机跳转逻辑。
 
 ---
@@ -123,6 +125,7 @@ npx serve .
 ## 📂 仓库代码组织
 
 ```text
+├── index.html                        # GitHub Pages 访问入口（自动跳转至模拟器）
 ├── src/
 │   ├── cia402-homing-simulator.html   # 主 Web 界面（UI 交互、Canvas 渲染与样式布局）
 │   └── homing-logic.js               # 核心回零状态机与物理动力学引擎（纯 JS）

@@ -2,6 +2,8 @@
 
 [English](README.md) | [简体中文](README_zh.md)
 
+> 🚀 **Live Demo**: [https://zhengyong1023.github.io/cia402-homing-simulator/](https://zhengyong1023.github.io/cia402-homing-simulator/)
+
 An interactive, web-based simulation tool designed for motion control engineers, firmware developers, and automation specialists to visualize, study, and verify **CiA 402 (CANopen / EtherCAT)** homing methods and state-machine transitions.
 
 ---
@@ -123,6 +125,7 @@ Then navigate to `http://localhost:8080/src/cia402-homing-simulator.html`.
 ## 📂 Repository File Structure
 
 ```text
+├── index.html                        # GitHub Pages entry point (redirects to simulator)
 ├── src/
 │   ├── cia402-homing-simulator.html   # Main web interface (UI, canvas/DOM stage, styling)
 │   └── homing-logic.js               # Core homing state machine and physics engine (Pure JS)
